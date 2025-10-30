@@ -76,7 +76,7 @@ git clone https://github.com/AnujKV123/furni-store.git
 cd furniture-ecommerce
 ```
 
-### 2. **Install Dependencies**
+### 2. **Install Dependencies** 
 
 **Backend Setup:**
 ```bash
