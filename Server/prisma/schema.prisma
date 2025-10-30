@@ -1,0 +1,147 @@
+// datasource and generator remain the same
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  orders    Order[]
+  password  String   // Remember to hash this in your backend!
+  cart      Cart?
+  reviews   Review[] // ADDED: So you can find all reviews by a user
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+// ADDED: A new model for better scalability and filtering
+model Category {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  description String?
+  furniture   Furniture[]
+}
+
+model Furniture {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  sku         String   @unique
+  widthCm     Decimal  @db.Decimal(8, 2)
+  heightCm    Decimal  @db.Decimal(8, 2)
+  depthCm     Decimal  @db.Decimal(8, 2)
+  images      Image[]
+  reviews     Review[]
+  orderItems  OrderItem[]
+  cartItems   CartItem[] // ADDED: Explicitly adds the relation
+
+  // CHANGED: From 'category String' to a proper relation
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+
+  createdAt DateTime @default(now())
+
+  @@index([categoryId])
+  @@index([price])
+  @@index([createdAt])
+  @@index([categoryId, price])
+  @@index([name])
+  @@index([categoryId, createdAt])
+  @@index([price, createdAt])
+}
+
+model Image {
+  id        Int       @id @default(autoincrement())
+  url       String
+  furniture Furniture @relation(fields: [furnitureId], references: [id], onDelete: Cascade) // ADDED: onDelete
+  furnitureId Int
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  user        User?       @relation(fields: [userId], references: [id])
+  userId      Int?        // Optional userId is good for guest checkouts
+  items       OrderItem[]
+  totalAmount Decimal     @db.Decimal(10, 2)
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([userId, status])
+}
+
+model OrderItem {
+  id        Int       @id @default(autoincrement())
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade) // ADDED: onDelete
+  orderId   Int
+  furniture Furniture @relation(fields: [furnitureId], references: [id], onDelete: Restrict) // CHANGED: Restrict (don't delete furniture if it's in an order)
+  furnitureId Int
+  quantity  Int       @default(1)
+  unitPrice Decimal   @db.Decimal(10, 2) // Good choice to store unitPrice at time of purchase
+
+  @@index([orderId])
+  @@index([furnitureId])
+  @@index([furnitureId, orderId])
+  @@unique([orderId, furnitureId])
+}
+
+model Review {
+  id      Int    @id @default(autoincrement())
+  rating  Int    // 1-5
+  comment String?
+
+  // CHANGED: Replaced 'userName' with a direct user link
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
+
+  furniture   Furniture @relation(fields: [furnitureId], references: [id], onDelete: Cascade) // ADDED: onDelete
+  furnitureId Int
+  createdAt   DateTime  @default(now())
+
+  @@index([furnitureId])
+  @@index([userId])
+  @@index([rating])
+  @@index([furnitureId, rating])
+  @@unique([userId, furnitureId]) // One review per user per furniture item
+}
+
+model Cart {
+  id        Int        @id @default(autoincrement())
+  user      User       @relation(fields: [userId], references: [id])
+  userId    Int        @unique
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+  createdAt DateTime   @default(now())
+}
+
+model CartItem {
+  id        Int       @id @default(autoincrement())
+  cart      Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade) // ADDED: onDelete
+  cartId    Int
+  furniture Furniture @relation(fields: [furnitureId], references: [id], onDelete: Cascade) // ADDED: onDelete
+  furnitureId Int
+  quantity  Int       @default(1)
+
+  @@index([cartId])
+  @@index([furnitureId])
+  @@unique([cartId, furnitureId]) // One item per furniture per cart
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
